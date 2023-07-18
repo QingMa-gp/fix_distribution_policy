@@ -1,6 +1,7 @@
 # Overview
-1. use `fix_distribution_policy.py gen`to generate alter table commands.
-2. use `fix_distribution_policy.py run`to run the alter table commands.
+**Find the tables with distribution keys opclass from legacy, and update them to the default one.**
+1. use `fix_distribution_policy.py gen` to generate alter table commands.
+2. use `fix_distribution_policy.py run` to run the alter table commands.
 ---
 # Usage
 ```bash
