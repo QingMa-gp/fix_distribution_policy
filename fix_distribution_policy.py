@@ -204,14 +204,14 @@ class ConcurrentRun(object):
         logger = logging.getLogger()
 
         logger.info("worker[%d]: begin: " % idx)
-        logger.info("worker[%d]: connect to <%s> " % (idx, dbname))
+        logger.info("worker[%d]: connect to <%s> ..." % (idx, dbname))
         db = DB(dbname=dbname,
                 port=port,
                 host=host,
                 user=user)
         for i, sql in enumerate(sqls):
             if (i % nproc) == idx:
-                logger.info("worker[%d]: execute alter command \"%s\"... " % (idx, sql))
+                logger.info("worker[%d]: execute alter command \"%s\" ... " % (idx, sql))
                 db.query(sql)
         db.close()
         logger.info("worker[%d]: finish." % idx)
