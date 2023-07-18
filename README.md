@@ -1,6 +1,6 @@
 # Overview
-1. use `fix_distribution_policy.py gen`to generate alter table commands
-2. use `fix_distribution_policy.py run`to run the alter table commands
+1. use `fix_distribution_policy.py gen`to generate alter table commands.
+2. use `fix_distribution_policy.py run`to run the alter table commands.
 ---
 # Usage
 ```bash
