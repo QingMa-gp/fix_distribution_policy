@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-
 import argparse
 import re
 from multiprocessing import Process
 import signal
-from pygresql.pg import DB
+import time
+import pg as pygresql
+from pg import DB
 import sys
 
 procs = []
@@ -14,9 +15,12 @@ procs = []
 def sig_handler(sig, arg):
     global procs
     for proc in procs:
-        proc.terminate()
-        proc.join()
-    sys.stderr.write("terminated by signal %s" % sig)
+        try:
+            proc.terminate()
+            proc.join()
+        except Exception as e:
+            sys.stderr.write("Error while terminating process: %s\n" % str(e))
+    sys.stderr.write("terminated by signal %s\n" % sig)
     sys.exit(127)
 
 
@@ -209,10 +213,15 @@ class ConcurrentRun(object):
                 port=port,
                 host=host,
                 user=user)
+        total_queries = len(sqls)
+        start = time.time()
         for i, sql in enumerate(sqls):
             if (i % nproc) == idx:
                 logger.info("worker[%d]: execute alter command \"%s\" ... " % (idx, sql))
                 db.query(sql)
+                end = time.time()
+                total_time = end - start
+                logger.info("Current worker progress: %d out of %d queries completed in %.3f seconds." % (i//nproc+1, total_queries//nproc, total_time))
         db.close()
         logger.info("worker[%d]: finish." % idx)
 
@@ -238,6 +247,7 @@ if __name__ == "__main__":
         cp.dump(args.out)
     elif args.cmd == "run":
         signal.signal(signal.SIGTERM, sig_handler)
+        signal.signal(signal.SIGINT, sig_handler)
         cr = ConcurrentRun(args.dbname, args.port, args.host, args.user,
                            args.input, args.nproc)
         cr.run()
