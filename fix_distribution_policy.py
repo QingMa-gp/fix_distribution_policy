@@ -51,7 +51,7 @@ class ChangePolicy(object):
     def get_regular_tables(self, is_legacy=True):
         db = self.get_db_conn()
 
-        predict = 'like' if is_legacy else 'not like'
+        predict = '' if is_legacy else 'not'
         sql = """
         select
           pn.nspname || '.' || pc.relname as relname,
@@ -63,7 +63,7 @@ class ChangePolicy(object):
               pn.oid = pc.relnamespace and
               (not pc.relhassubclass) and
               pc.oid not in (select parchildrelid from pg_partition_rule) and
-              pg_get_table_distributedby(pc.oid) %s '%%cdbhash%%'
+              %s (gdp.distclass::oid[] && '{10165,10166,10167,10168,10169,10170,10171,10172,10173,10174,10175,10176,10177,10178,10179,10180,10181,10182,10183,10184,10185,10186,10187,10188,10189,10190,10191,10192,10193,10194,10195,10196,10197,10198}'::oid[])
         """ % predict
         r = db.query(sql).getresult()
         db.close()
@@ -72,7 +72,7 @@ class ChangePolicy(object):
     def get_root_partition_tables(self, is_legacy=True):
         db = self.get_db_conn()
 
-        predict = 'like' if is_legacy else 'not like'
+        predict = '' if is_legacy else 'not'
         sql = """
         select
           pn.nspname || '.' || pc.relname as relname,
@@ -84,7 +84,7 @@ class ChangePolicy(object):
               pn.oid = pc.relnamespace and
               pc.relhassubclass and
               pc.oid not in (select parchildrelid from pg_partition_rule) and
-              pg_get_table_distributedby(pc.oid) %s '%%cdbhash%%'
+              %s (gdp.distclass::oid[] && '{10165,10166,10167,10168,10169,10170,10171,10172,10173,10174,10175,10176,10177,10178,10179,10180,10181,10182,10183,10184,10185,10186,10187,10188,10189,10190,10191,10192,10193,10194,10195,10196,10197,10198}'::oid[])
         """ % predict
         r = db.query(sql).getresult()
         db.close()
