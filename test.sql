@@ -2,6 +2,8 @@ set gp_use_legacy_hashops = 0;
 
 create table t_new(a int, b int, c int) distributed by (a, b);
 create table t1_new(a int, b int, c int) distributed by (a, b);
+create table t_replicate_new(a int , b int) distributed replicated;
+create table t_random_new(a int , b int) distributed randomly;
 
 CREATE TABLE rank_new (id int, rank int, year int, gender 
 	char(1), count int)
@@ -27,6 +29,8 @@ set gp_use_legacy_hashops = 1;
 
 create table t_old(a int, b int, c int) distributed by (a, b);
 create table t1_old(a int, b int, c int) distributed by (a, b);
+create table t_replicate_old(a int , b int) distributed replicated;
+create table t_random_old(a int , b int) distributed randomly;
 
 CREATE TABLE rank_old (id int, rank int, year int, gender 
 	char(1), count int)

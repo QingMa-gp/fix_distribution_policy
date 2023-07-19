@@ -57,6 +57,7 @@ class ChangePolicy(object):
               pn.oid = pc.relnamespace and
               (not pc.relhassubclass) and
               pc.oid not in (select parchildrelid from pg_partition_rule) and
+              gdp.policytype = 'p' and array_length(gdp.distkey::int[], 1) > 0 and
               %s (gdp.distclass::oid[] && '{10165,10166,10167,10168,10169,10170,10171,10172,10173,10174,10175,10176,10177,10178,10179,10180,10181,10182,10183,10184,10185,10186,10187,10188,10189,10190,10191,10192,10193,10194,10195,10196,10197,10198}'::oid[])
         """ % predict
         r = db.query(sql).getresult()
@@ -78,6 +79,7 @@ class ChangePolicy(object):
               pn.oid = pc.relnamespace and
               pc.relhassubclass and
               pc.oid not in (select parchildrelid from pg_partition_rule) and
+              gdp.policytype = 'p' and array_length(gdp.distkey::int[], 1) > 0 and
               %s (gdp.distclass::oid[] && '{10165,10166,10167,10168,10169,10170,10171,10172,10173,10174,10175,10176,10177,10178,10179,10180,10181,10182,10183,10184,10185,10186,10187,10188,10189,10190,10191,10192,10193,10194,10195,10196,10197,10198}'::oid[])
         """ % predict
         r = db.query(sql).getresult()
