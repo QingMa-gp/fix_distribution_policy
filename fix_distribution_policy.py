@@ -5,8 +5,7 @@ import re
 from multiprocessing import Process
 import signal
 import time
-import pg as pygresql
-from pg import DB
+from pygresql.pg import DB
 import sys
 
 procs = []
