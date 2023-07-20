@@ -26,11 +26,12 @@ def sig_handler(sig, arg):
 
 class ChangePolicy(object):
 
-    def __init__(self, dbname, port, host, user):
+    def __init__(self, dbname, port, host, user, dump_legacy_ops):
         self.dbname = dbname
         self.port = int(port)
         self.host = host
         self.user = user
+        self.dump_legacy_ops = dump_legacy_ops
         self.pt = re.compile(r'[(](.*)[)]')
 
     def get_db_conn(self):
@@ -39,19 +40,12 @@ class ChangePolicy(object):
                 host=self.host,
                 user=self.user)
 
-        db.query("set gp_use_legacy_hashops = off;")
-        r = db.query("show gp_use_legacy_hashops ;").getresult()
-        if r[0][0] == "on":
-            db.close()
-            sys.stderr.write("gp_use_legacy_hashops cannot be on for this script.\n")
-            sys.exit(127)
-
         return db
 
-    def get_regular_tables(self, is_legacy=True):
+    def get_regular_tables(self):
         db = self.get_db_conn()
 
-        predict = 'like' if is_legacy else 'not like'
+        predict = '' if self.dump_legacy_ops else 'not'
         sql = """
         select
           pn.nspname || '.' || pc.relname as relname,
@@ -63,7 +57,8 @@ class ChangePolicy(object):
               pn.oid = pc.relnamespace and
               (not pc.relhassubclass) and
               pc.oid not in (select parchildrelid from pg_partition_rule) and
-              pg_get_table_distributedby(pc.oid) %s '%%cdbhash%%'
+              gdp.policytype = 'p' and array_length(gdp.distkey::int[], 1) > 0 and
+              %s (gdp.distclass::oid[] && '{10165,10166,10167,10168,10169,10170,10171,10172,10173,10174,10175,10176,10177,10178,10179,10180,10181,10182,10183,10184,10185,10186,10187,10188,10189,10190,10191,10192,10193,10194,10195,10196,10197,10198}'::oid[])
         """ % predict
         r = db.query(sql).getresult()
         db.close()
@@ -72,7 +67,7 @@ class ChangePolicy(object):
     def get_root_partition_tables(self, is_legacy=True):
         db = self.get_db_conn()
 
-        predict = 'like' if is_legacy else 'not like'
+        predict = '' if self.dump_legacy_ops else 'not'
         sql = """
         select
           pn.nspname || '.' || pc.relname as relname,
@@ -84,7 +79,8 @@ class ChangePolicy(object):
               pn.oid = pc.relnamespace and
               pc.relhassubclass and
               pc.oid not in (select parchildrelid from pg_partition_rule) and
-              pg_get_table_distributedby(pc.oid) %s '%%cdbhash%%'
+              gdp.policytype = 'p' and array_length(gdp.distkey::int[], 1) > 0 and
+              %s (gdp.distclass::oid[] && '{10165,10166,10167,10168,10169,10170,10171,10172,10173,10174,10175,10176,10177,10178,10179,10180,10181,10182,10183,10184,10185,10186,10187,10188,10189,10190,10191,10192,10193,10194,10195,10196,10197,10198}'::oid[])
         """ % predict
         r = db.query(sql).getresult()
         db.close()
@@ -142,6 +138,7 @@ class ChangePolicy(object):
         db = self.get_db_conn()
         f = open(fn, "w")
         # regular
+        print>>f, "-- dump legacy ops is %s" % self.dump_legacy_ops
         regular = self.get_regular_tables()
         for name, distby in regular:
             print>>f, "-- ", self.dump_table_info(db, name)
@@ -237,13 +234,15 @@ if __name__ == "__main__":
     parser_run = subparsers.add_parser('run', help='run the alter table cmds')
 
     parser_gen.add_argument('--out', type=str, help='outfile path for the alter table commands')
+    parser_gen.add_argument('--dump_legacy_ops', action='store_true', help='dump all tables with legacy distkey ops')
+    parser_gen.set_defaults(dump_legacy_ops=False)
     parser_run.add_argument('--nproc', type=int, default=1, help='the concurrent proces to run the alter table commands')
     parser_run.add_argument('--input', type=str, help='the file contains all alter table commands')
 
     args = parser.parse_args()
 
     if args.cmd == 'gen':
-        cp = ChangePolicy(args.dbname, args.port, args.host, args.user)
+        cp = ChangePolicy(args.dbname, args.port, args.host, args.user, args.dump_legacy_ops)
         cp.dump(args.out)
     elif args.cmd == "run":
         signal.signal(signal.SIGTERM, sig_handler)
