@@ -9,6 +9,11 @@ from pygresql.pg import DB
 import sys
 
 procs = []
+total_leafs = 0
+total_norms = 0
+total_roots = 0
+total_norm_size = 0
+total_root_size = 0
 
 
 def sig_handler(sig, arg):
@@ -103,6 +108,10 @@ class ChangePolicy(object):
         if is_normal:
             sql = "select pg_relation_size('{name}'::regclass);"
             r = db.query(sql.format(name=name)).getresult()
+            global total_norms
+            global total_norm_size
+            total_norm_size += r[0][0]
+            total_norms += 1
             return "normal table, size %s" % r[0][0]
         else:
             sql_size = """
@@ -131,6 +140,12 @@ class ChangePolicy(object):
             """
             r = db.query(sql_nleafs.format(name=name))
             nleafs = r.getresult()[0][0]
+            global total_leafs
+            global total_roots
+            global total_root_size
+            total_root_size += size
+            total_leafs += nleafs
+            total_roots += 1
             return "partition table, %s leafs, size %s" % (nleafs, size)
 
     def dump(self, fn):
@@ -243,6 +258,10 @@ if __name__ == "__main__":
     if args.cmd == 'gen':
         cp = ChangePolicy(args.dbname, args.port, args.host, args.user, args.dump_legacy_ops)
         cp.dump(args.out)
+        print "total table size (in GBytes) : %s" % (float(total_norm_size + total_root_size) / 1024.0**3)
+        print "total normal table           : %s" % total_norms
+        print "total partition tables       : %s" % total_roots
+        print "total leaf partitions        : %s" % total_leafs
     elif args.cmd == "run":
         signal.signal(signal.SIGTERM, sig_handler)
         signal.signal(signal.SIGINT, sig_handler)
