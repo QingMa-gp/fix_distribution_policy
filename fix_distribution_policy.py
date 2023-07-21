@@ -230,6 +230,10 @@ class ConcurrentRun(object):
             if (i % nproc) == idx:
                 logger.info("worker[%d]: execute alter command \"%s\" ... " % (idx, sql))
                 db.query(sql)
+                tab = sql.strip().split()[2]
+                analyze_sql = "analyze %s;" % tab
+                logger.info("worker[%d]: execute analyze command \"%s\" ... " % (idx, analyze_sql))
+                db.query(analyze_sql)
                 end = time.time()
                 total_time = end - start
                 logger.info("Current worker progress: %d out of %d queries completed in %.3f seconds." % (i//nproc+1, total_queries//nproc, total_time))
