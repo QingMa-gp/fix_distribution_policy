@@ -5,8 +5,7 @@ import re
 from multiprocessing import Process
 import signal
 import time
-import pg as pygresql
-from pg import DB
+from pygresql.pg import DB
 import sys
 
 procs = []
@@ -48,7 +47,7 @@ class ChangePolicy(object):
         predict = '' if self.dump_legacy_ops else 'not'
         sql = """
         select
-          pn.nspname || '.' || pc.relname as relname,
+          '"' || pn.nspname || '"."' || pc.relname || '"' as relname,
           pg_get_table_distributedby(pc.oid) distby
         from pg_class pc,
              pg_namespace pn,
@@ -70,7 +69,7 @@ class ChangePolicy(object):
         predict = '' if self.dump_legacy_ops else 'not'
         sql = """
         select
-          pn.nspname || '.' || pc.relname as relname,
+          '"' || pn.nspname || '"."' || pc.relname || '"' as relname,
           pg_get_table_distributedby(pc.oid) distby
         from pg_class pc,
              pg_namespace pn,
