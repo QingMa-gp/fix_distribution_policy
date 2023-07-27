@@ -51,3 +51,9 @@ $$ language 'plpgsql' STRICT;
 insert into rank_old
 select i, i, random_between(2005, 2017), 'g', i
 from generate_series(1, 100000)i;
+
+-- some special characters in column names
+create table t_space("a col" int);
+create table t_dot("a.col" int);
+create table t_dash("a-col" int);
+create table t_multispecial("a col" int, "b.col" int, "c-col" int) distributed by ("a col", "b.col", "c-col");
