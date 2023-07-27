@@ -2,7 +2,7 @@
 
 import argparse
 import re
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 import signal
 import time
 from pygresql.pg import DB
@@ -30,12 +30,13 @@ def sig_handler(sig, arg):
 
 class ChangePolicy(object):
 
-    def __init__(self, dbname, port, host, user, dump_legacy_ops):
+    def __init__(self, dbname, port, host, user, dump_legacy_ops, order_size_ascend):
         self.dbname = dbname
         self.port = int(port)
         self.host = host
         self.user = user
         self.dump_legacy_ops = dump_legacy_ops
+        self.order_size_ascend = order_size_ascend
         self.pt = re.compile(r'[(](.*)[)]')
 
     def get_db_conn(self):
@@ -93,7 +94,7 @@ class ChangePolicy(object):
     def remove_ops_ifany(self, distby):
         # DISTRIBUTED BY (a cdbhash_int4_ops, b cdbhash_int4_ops)
         t = self.pt.findall(distby)[0]
-        cols =  ", ".join([s.strip().split()[0].strip()
+        cols =  ", ".join([s.strip()
                            for s in t.split(',')])
         return "distributed by (%s)" % cols
 
@@ -112,7 +113,7 @@ class ChangePolicy(object):
             global total_norm_size
             total_norm_size += r[0][0]
             total_norms += 1
-            return "normal table, size %s" % r[0][0]
+            return "normal table, size %s" % r[0][0], r[0][0]
         else:
             sql_size = """
               with recursive cte(nlevel, table_oid) as (
@@ -146,24 +147,32 @@ class ChangePolicy(object):
             total_root_size += size
             total_leafs += nleafs
             total_roots += 1
-            return "partition table, %s leafs, size %s" % (nleafs, size)
+            return "partition table, %s leafs, size %s" % (nleafs, size), size
 
     def dump(self, fn):
         db = self.get_db_conn()
         f = open(fn, "w")
-        # regular
-        print>>f, "-- dump legacy ops is %s" % self.dump_legacy_ops
+        print>>f, "-- dump %s ops " % 'legacy' if self.dump_legacy_ops else 'new'
+        print>>f, "-- order table by size in %s order " % 'ascending' if self.order_size_ascend else 'descending'
+        table_info = []
+        # regular tables
         regular = self.get_regular_tables()
         for name, distby in regular:
-            print>>f, "-- ", self.dump_table_info(db, name)
-            print>>f, self.handle_one_table(name, distby)
-            print>>f
-
-        print >>f, "--------------------------------"
-
+            msg, size = self.dump_table_info(db, name)
+            table_info.append((name, distby, size, msg))
+        # partitioned tables
         parts = self.get_root_partition_tables()
         for name, distby in parts:
-            print>>f, "-- ", self.dump_table_info(db, name, False)
+            msg, size = self.dump_table_info(db, name, False)
+            table_info.append((name, distby, size, msg))
+
+        if self.order_size_ascend:
+            table_info.sort(key=lambda x: x[2], reverse=False)
+        else:
+            table_info.sort(key=lambda x: x[2], reverse=True)
+
+        for name, distby, size, msg in table_info:
+            print>>f, "-- ", msg
             print>>f, self.handle_one_table(name, distby)
             print>>f
 
@@ -188,14 +197,14 @@ class ConcurrentRun(object):
         return db
 
     def parse_inputfile(self):
-        self.sqls = []
+        self.sqls = Queue()
         with open(self.script_file) as f:
             for line in f:
                 sql = line.strip()
                 if (sql.startswith("alter table") and
                         sql.endswith(";") and
                         sql.count(";") == 1):
-                    self.sqls.append(sql)
+                    self.sqls.put(sql)
 
     def run(self):
         self.parse_inputfile()
@@ -224,19 +233,18 @@ class ConcurrentRun(object):
                 port=port,
                 host=host,
                 user=user)
-        total_queries = len(sqls)
         start = time.time()
-        for i, sql in enumerate(sqls):
-            if (i % nproc) == idx:
-                logger.info("worker[%d]: execute alter command \"%s\" ... " % (idx, sql))
-                db.query(sql)
-                tab = sql.strip().split()[2]
-                analyze_sql = "analyze %s;" % tab
-                logger.info("worker[%d]: execute analyze command \"%s\" ... " % (idx, analyze_sql))
-                db.query(analyze_sql)
-                end = time.time()
-                total_time = end - start
-                logger.info("Current worker progress: %d out of %d queries completed in %.3f seconds." % (i//nproc+1, total_queries//nproc, total_time))
+        while not sqls.empty():
+            sql = sqls.get()
+            logger.info("worker[%d]: execute alter command \"%s\" ... " % (idx, sql))
+            db.query(sql)
+            tab = sql.strip().split()[2]
+            analyze_sql = "analyze %s;" % tab
+            logger.info("worker[%d]: execute analyze command \"%s\" ... " % (idx, analyze_sql))
+            db.query(analyze_sql)
+            end = time.time()
+            total_time = end - start
+            logger.info("Current progress: have %d remaining, %.3f seconds passed." % (sqls.qsize(), total_time))
         db.close()
         logger.info("worker[%d]: finish." % idx)
 
@@ -254,13 +262,15 @@ if __name__ == "__main__":
     parser_gen.add_argument('--out', type=str, help='outfile path for the alter table commands')
     parser_gen.add_argument('--dump_legacy_ops', action='store_true', help='dump all tables with legacy distkey ops')
     parser_gen.set_defaults(dump_legacy_ops=False)
+    parser_gen.add_argument('--order_size_ascend', action='store_true', help='sort the tables by size in ascending order')
+    parser_gen.set_defaults(order_size_ascend=False)
     parser_run.add_argument('--nproc', type=int, default=1, help='the concurrent proces to run the alter table commands')
     parser_run.add_argument('--input', type=str, help='the file contains all alter table commands')
 
     args = parser.parse_args()
 
     if args.cmd == 'gen':
-        cp = ChangePolicy(args.dbname, args.port, args.host, args.user, args.dump_legacy_ops)
+        cp = ChangePolicy(args.dbname, args.port, args.host, args.user, args.dump_legacy_ops, args.order_size_ascend)
         cp.dump(args.out)
         print "total table size (in GBytes) : %s" % (float(total_norm_size + total_root_size) / 1024.0**3)
         print "total normal table           : %s" % total_norms
