@@ -152,8 +152,8 @@ class ChangePolicy(object):
     def dump(self, fn):
         db = self.get_db_conn()
         f = open(fn, "w")
-        print>>f, "-- dump %s ops " % 'legacy' if self.dump_legacy_ops else 'new'
-        print>>f, "-- order table by size in %s order " % 'ascending' if self.order_size_ascend else 'descending'
+        print>>f, "-- dump %s ops " % 'legacy' if self.dump_legacy_ops else "-- dump %s ops " % 'new'
+        print>>f, "-- order table by size in %s order " % 'ascending' if self.order_size_ascend else "-- order table by size in %s order " % 'descending'
         table_info = []
         # regular tables
         regular = self.get_regular_tables()
