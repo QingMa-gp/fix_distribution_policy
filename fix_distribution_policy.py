@@ -94,7 +94,7 @@ class ChangePolicy(object):
     def remove_ops_ifany(self, distby):
         # DISTRIBUTED BY (a cdbhash_int4_ops, b cdbhash_int4_ops)
         t = self.pt.findall(distby)[0]
-        cols =  ", ".join([s.strip()
+        cols =  ", ".join([s.strip().split()[0].strip()
                            for s in t.split(',')])
         return "distributed by (%s)" % cols
 
